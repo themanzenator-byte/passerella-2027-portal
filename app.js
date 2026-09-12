@@ -73,15 +73,28 @@ function normalizeSheetDate(cell){
   return '';
 }
 
+function scheduleRows(table){
+  return (table.rows || []).map(r => {
+    const c = r.c || [];
+    return {
+      date: normalizeSheetDate(c[0]),
+      start: String(cellValue(c[1])||''),
+      end: String(cellValue(c[2])||''),
+      subject: String(cellValue(c[3])||''),
+      activity: String(cellValue(c[4])||'')
+    };
+  }).filter(x=>x.date);
+}
+
 async function getTodaySchedule(){
   const table = await querySheet('Piano','select A,C,D,E,F');
   const iso = todayISO();
-  return (table.rows || [])
-    .filter(r => normalizeSheetDate((r.c || [])[0]) === iso)
-    .map(r => {
-      const c = r.c || [];
-      return [String(cellValue(c[1])||''), String(cellValue(c[2])||''), String(cellValue(c[3])||''), String(cellValue(c[4])||'')];
-    });
+  const rows = scheduleRows(table);
+  const today = rows.filter(x=>x.date===iso);
+  if(today.length) return {date:iso, items:today, isToday:true};
+  const futureDates=[...new Set(rows.map(x=>x.date).filter(d=>d>iso))].sort();
+  const nextDate=futureDates[0] || '';
+  return {date:nextDate, items:nextDate ? rows.filter(x=>x.date===nextDate) : [], isToday:false};
 }
 
 function boolCell(cell){
@@ -145,8 +158,14 @@ function loadMaterials(){
 function materialCount(s){ return Object.values(s.files).reduce((sum,arr)=>sum+arr.length,0); }
 
 function renderSchedule(items){
-  if(!items.length) return `<div class="empty">Nessuna attività prevista oggi nel piano di studio.</div>`;
-  return `<div class="schedule">${items.map(x=>`<div class="schedule-item"><div class="time">${esc(x[0])}–${esc(x[1])}</div><div class="subject">${esc(x[2])}</div><div class="activity">${esc(x[3])}</div></div>`).join('')}</div>`;
+  if(!items.length) return `<div class="empty">Nessuna attività futura trovata nel piano di studio.</div>`;
+  return `<div class="schedule">${items.map(x=>`<div class="schedule-item"><div class="time">${esc(x.start)}–${esc(x.end)}</div><div class="subject">${esc(x.subject)}</div><div class="activity">${esc(x.activity)}</div></div>`).join('')}</div>`;
+}
+
+function prettyISO(iso){
+  if(!iso) return '';
+  const [y,m,d]=iso.split('-').map(Number);
+  return new Intl.DateTimeFormat('it-CH',{weekday:'long',day:'numeric',month:'long',year:'numeric'}).format(new Date(y,m-1,d));
 }
 
 async function refreshSchedule(){
@@ -156,9 +175,17 @@ async function refreshSchedule(){
   box.innerHTML='<div class="empty">Caricamento dal piano di studio…</div>';
   status.textContent='Collegamento a Google Sheets…';
   try{
-    const items=await getTodaySchedule();
-    box.innerHTML=renderSchedule(items);
-    status.textContent = items.length ? `${items.length} attività previste` : 'Nessuna attività prevista';
+    const result=await getTodaySchedule();
+    if(result.isToday){
+      box.innerHTML=renderSchedule(result.items);
+      status.textContent = result.items.length ? `${result.items.length} attività previste · Piano collegato` : 'Nessuna attività prevista · Piano collegato';
+    }else if(result.items.length){
+      box.innerHTML=`<div class="empty"><strong>Nessuna attività prevista oggi.</strong><br>Prossimo giorno di studio: ${esc(prettyISO(result.date))}</div>${renderSchedule(result.items)}`;
+      status.textContent=`Piano collegato · prossima giornata: ${result.items.length} attività`;
+    }else{
+      box.innerHTML=renderSchedule([]);
+      status.textContent='Piano collegato · nessuna attività futura';
+    }
   }catch(e){
     status.textContent='Piano non raggiungibile';
     box.innerHTML=`<div class="empty error"><strong>Non riesco a leggere automaticamente il piano.</strong><br>Il portale usa il Google Sheet pubblico come fonte dati. Premi <em>Aggiorna programma</em> per riprovare.<br><small>${esc(e.message)}</small></div>`;
