@@ -13,3 +13,6 @@ Quando vengono aggiunti/rinominati/spostati materiali in Google Drive, non è ne
 Quando vengono aggiunti video/link, basta aggiungere una riga a `PORTALE_LINKS`.
 
 Un nuovo deployment Vercel serve solo quando si modifica il codice, il layout o le funzioni del portale.
+
+## Automazione deploy
+Il repository è collegato a Vercel: i commit su `main` vengono usati per aggiornare automaticamente il portale.
