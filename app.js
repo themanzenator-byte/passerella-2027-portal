@@ -129,6 +129,21 @@ function loadMaterials(){
         subjects[key].files[cat].push({name,url,format,desc:`${format} su Google Drive`,order});
       });
 
+
+      // Fallback for two verified biology PDFs if the public Sheets feed is stale.
+      // The catalog remains authoritative: already-synced entries are not duplicated.
+      const biologyFallback = [
+        {name:'BIO_MAN_Genetica_esercizi_guidati.pdf',url:'https://drive.google.com/file/d/1F3reDv35y4zD2wPec647M65L_y8gKCzr/view',format:'PDF',desc:'PDF su Google Drive',order:20},
+        {name:'BIO_MAN_Mitosi_meiosi_cromosomi.pdf',url:'https://drive.google.com/file/d/1yibUsyqphLVByLFqm3lFKdYG8al2L1uf/view',format:'PDF',desc:'PDF su Google Drive',order:30}
+      ];
+      const bioCategory = 'Manuali / Dossier';
+      subjects.biologia.files[bioCategory] ||= [];
+      biologyFallback.forEach(item=>{
+        if(!subjects.biologia.files[bioCategory].some(existing=>existing.name===item.name || existing.url===item.url)){
+          subjects.biologia.files[bioCategory].push(item);
+        }
+      });
+
       (linksTable.rows || []).forEach(r=>{
         const c=r.c||[];
         const materia=String(cellValue(c[0])||'').trim().toLowerCase();
